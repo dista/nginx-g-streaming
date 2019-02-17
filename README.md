@@ -1,4 +1,6 @@
-NX rtmp with more features
+#Nginx rtmp with more features
+
+Tested nginx version: 1.15.8    
 
 ## Added features
 
