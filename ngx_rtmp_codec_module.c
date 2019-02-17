@@ -186,6 +186,11 @@ ngx_rtmp_codec_disconnect(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ctx->meta = NULL;
     }
 
+    if (ctx->raw_meta) {
+        ngx_rtmp_free_shared_chain(cscf, ctx->raw_meta);
+        ctx->raw_meta = NULL;
+    }
+
     return NGX_OK;
 }
 
@@ -708,10 +713,17 @@ ngx_rtmp_codec_copy_meta(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 static ngx_int_t
 ngx_rtmp_codec_prepare_meta(ngx_rtmp_session_t *s, uint32_t timestamp)
 {
-    ngx_rtmp_header_t      h;
-    ngx_rtmp_codec_ctx_t  *ctx;
+    ngx_rtmp_header_t         h;
+    ngx_rtmp_codec_ctx_t     *ctx;
+    ngx_rtmp_core_srv_conf_t *cscf;
 
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_codec_module);
+    cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
+
+    if (ctx->raw_meta != NULL) {
+        ngx_rtmp_free_shared_chain(cscf, ctx->raw_meta);
+    }
+    ctx->raw_meta = ngx_rtmp_append_shared_bufs(cscf, NULL, ctx->meta);
 
     ngx_memzero(&h, sizeof(h));
     h.csid = NGX_RTMP_CSID_AMF;
