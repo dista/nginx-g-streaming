@@ -44,3 +44,7 @@ http {
 `http_rtmp_live_dst` and `http_live_src` are paired, for example:    
 When we visit a http/flv stream `http://127.0.0.1:8080/myapp/test.flv`, it will find rtmp server block contains the `http_live_src` as `mylive`, and find app `myapp` and stream name `test`.
 So if we using ffmpeg to push rtmp stream to `rtmp://127.0.0.1:19350/myapp/test`,  the stream data will send to the http/flv client.
+
+### DEV Notes
+
+http-live-flv notes(https://dista.work/dev/2019/02/17/ngx-rtmp-http-live.html)
