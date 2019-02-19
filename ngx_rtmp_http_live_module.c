@@ -9,6 +9,9 @@
 #include "ngx_rtmp_codec_module.h"
 
 
+/* flv header plus previous tag size */
+#define FLV_HEADER_PLUS_PTS_SIZE 13
+
 static ngx_rtmp_publish_pt              next_publish;
 static ngx_rtmp_close_stream_pt         next_close_stream;
 
@@ -242,6 +245,21 @@ static void
 ngx_http_rtmp_live_write_handler(ngx_http_request_t *r)
 {
     ngx_http_rtmp_live_play_ctx_t      *play;
+    ngx_event_t                        *wev;
+    ngx_connection_t                   *c;
+
+    c = r->connection;
+    wev = c->write;
+
+    if (wev->timedout) {
+        ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
+                      "client timed out");
+
+        c->timedout = 1;
+
+        ngx_http_finalize_request(r, NGX_HTTP_REQUEST_TIME_OUT);
+        return;
+    }
 
     play = ngx_http_get_module_ctx(r, ngx_http_rtmp_live_module);
 
@@ -265,6 +283,10 @@ ngx_http_rtmp_live_handler(ngx_http_request_t *r)
     ngx_rtmp_shared_send_chain_ctx_t     *chain_ctx;
     ngx_pool_cleanup_t                   *cln;
     ngx_int_t                             rc;
+    ngx_http_core_loc_conf_t             *clcf;
+    ngx_event_t                          *wev;
+
+    wev = r->connection->write;
 
     if (r != r->main) {
         return NGX_DECLINED;
@@ -410,8 +432,13 @@ ngx_http_rtmp_live_handler(ngx_http_request_t *r)
     r->read_event_handler = ngx_http_test_reading;
     r->write_event_handler = ngx_http_rtmp_live_write_handler;
 
-    /* TODO: should we set this, how to set this? */
-    if (ngx_handle_write_event(r->connection->write, 0) != NGX_OK) {
+    clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
+
+    if (!wev->delayed) {
+        ngx_add_timer(wev, clcf->send_timeout);
+    }
+
+    if (ngx_handle_write_event(wev, 0) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -514,9 +541,12 @@ ngx_rtmp_http_live_send(ngx_http_rtmp_live_play_ctx_t *play, ngx_chain_t *in,
     ngx_buf_t                            *b;
     ngx_rtmp_shared_send_chain_ctx_t     *chain_ctx;
     ngx_rtmp_core_srv_conf_t             *cscf;
+    ngx_http_core_loc_conf_t             *clcf;
+    ngx_event_t                          *wev;
 
     r = play->r;
     chain_ctx = play->chain_ctx;
+    wev = r->connection->write;
 
     cscf = ngx_rtmp_get_module_srv_conf(play->stream->session, ngx_rtmp_core_module);
 
@@ -568,7 +598,13 @@ ngx_rtmp_http_live_send(ngx_http_rtmp_live_play_ctx_t *play, ngx_chain_t *in,
 
     ngx_rtmp_update_chains_and_shared_pkt(r->pool, cscf, play->chain_ctx, &out);
 
-    if (ngx_handle_write_event(r->connection->write, 0) != NGX_OK) {
+    clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
+
+    if (!wev->delayed) {
+        ngx_add_timer(wev, clcf->send_timeout);
+    }
+
+    if (ngx_handle_write_event(wev, 0) != NGX_OK) {
         ngx_http_finalize_request(r, 0);
         return NGX_ERROR;
     }
@@ -682,7 +718,7 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_buf_t                          buf;
     ngx_http_rtmp_live_stream_t       *stream;
     ngx_http_rtmp_live_play_ctx_t     *pctx;
-    u_char                             tmp_header[13]; /* include previous tag size*/
+    u_char                             tmp_header[FLV_HEADER_PLUS_PTS_SIZE];
     ngx_int_t                          mandatory;
     ngx_uint_t                         prio;
     ngx_uint_t                         tsid;
