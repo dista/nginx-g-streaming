@@ -49,6 +49,20 @@ http {
 When we visit a http/flv stream `http://127.0.0.1:8080/myapp/test.flv`, it will find rtmp server block contains the `http_live_src` as `mylive`, and find app `myapp` and stream name `test`.
 So if we using ffmpeg to push rtmp stream to `rtmp://127.0.0.1:19350/myapp/test`,  the stream data will send to the http/flv client.
 
+### Try
+
+pushing using ffmpeg
+```
+ffmpeg -re -i $input_video_file_path -acodec copy -vcodec copy -flags global_header -f flv rtmp://127.0.0.1:19350/myapp/test
+```
+download(or play by any player, such as vlc)
+```
+➜  ~ curl http://127.0.0.1:8080/myapp/test.flv > /dev/null
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100 1594k    0 1594k    0     0   114k      0 --:--:--  0:00:13 --:--:--  117k
+```
+
 ### DEV Notes
 
 http-live-flv notes(https://dista.work/dev/2019/02/17/ngx-rtmp-http-live.html)
