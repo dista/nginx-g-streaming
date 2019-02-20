@@ -32,6 +32,8 @@ struct ngx_http_rtmp_live_stream_s {
 
     ngx_http_rtmp_live_play_ctx_t    *http_players;
 
+    ngx_rtmp_core_srv_conf_t         *cscf;
+
     ngx_chain_t                      *flv_header;
 
     ngx_chain_t                      *meta;

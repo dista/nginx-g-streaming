@@ -218,8 +218,7 @@ ngx_http_rtmp_cleanup_handler(void *data)
     ctx = data;
     chain_ctx = ctx->chain_ctx;
     stream = ctx->stream;
-
-    cscf = ngx_rtmp_get_module_srv_conf(stream->session, ngx_rtmp_core_module);
+    cscf = stream->cscf;
 
     while (chain_ctx->out_pos != chain_ctx->out_last) {
         ngx_rtmp_free_shared_chain(cscf, chain_ctx->out[chain_ctx->out_pos++]);
@@ -241,7 +240,9 @@ ngx_http_rtmp_cleanup_handler(void *data)
     // no clients
     if (stream->http_players == NULL) {
         // destroy the only rtmp play session
-        ngx_rtmp_finalize_session(stream->session);
+        if (stream->session != NULL) {
+            ngx_rtmp_finalize_session(stream->session);
+        }
     }
 }
 
@@ -552,7 +553,7 @@ ngx_rtmp_http_live_send(ngx_http_rtmp_live_play_ctx_t *play, ngx_chain_t *in,
     chain_ctx = play->chain_ctx;
     wev = r->connection->write;
 
-    cscf = ngx_rtmp_get_module_srv_conf(play->stream->session, ngx_rtmp_core_module);
+    cscf = play->stream->cscf;
 
     if (in != NULL) {
         nmsg = (chain_ctx->out_last - chain_ctx->out_pos) % chain_ctx->out_queue + 1;
@@ -1000,6 +1001,7 @@ ngx_rtmp_http_live_join_stream_play(ngx_rtmp_http_live_app_conf_t *lacf,
     ngx_uint_t                         i;
     ngx_rtmp_http_live_ctx_t          *ctx;
     ngx_rtmp_live_app_conf_t          *pcf;
+    ngx_rtmp_core_srv_conf_t          *cscf;
 
     pool = NULL;
     s = NULL;
@@ -1073,11 +1075,14 @@ ngx_rtmp_http_live_join_stream_play(ngx_rtmp_http_live_app_conf_t *lacf,
         }
     }
 
+    cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
+
     /* play mode */
     ctx->publishing = 0;
     ctx->stream = *stream;
     ngx_rtmp_set_ctx(s, ctx, ngx_rtmp_http_live_module);
     (*stream)->session = s;
+    (*stream)->cscf = cscf;
 
     return stream;
 
