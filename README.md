@@ -52,10 +52,13 @@ So if we using ffmpeg to push rtmp stream to `rtmp://127.0.0.1:19350/myapp/test`
 ### Try
 
 pushing using ffmpeg
+
 ```
 ffmpeg -re -i $input_video_file_path -acodec copy -vcodec copy -flags global_header -f flv rtmp://127.0.0.1:19350/myapp/test
 ```
+
 download(or play by any player, such as vlc)
+
 ```
 ➜  ~ curl http://127.0.0.1:8080/myapp/test.flv > /dev/null
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
