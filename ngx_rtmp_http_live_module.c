@@ -30,7 +30,7 @@ static ngx_http_rtmp_live_stream_t **ngx_rtmp_http_live_join_stream_play(ngx_rtm
         ngx_str_t *name, ngx_rtmp_conf_ctx_t *cctx);
 static ngx_http_rtmp_live_stream_t **ngx_rtmp_http_live_get_stream(ngx_rtmp_http_live_app_conf_t *lacf,
         ngx_str_t *name, ngx_int_t create);
-static ngx_int_t ngx_rtmp_http_live_play_local(ngx_rtmp_session_t *s);
+static ngx_int_t ngx_rtmp_http_live_play_local(ngx_rtmp_session_t *s, u_char *name);
 static ngx_int_t ngx_rtmp_http_live_send(ngx_http_rtmp_live_play_ctx_t *play, ngx_chain_t *in, ngx_uint_t priority);
 static void ngx_rtmp_http_live_build_header(u_char *header, size_t header_size, int has_video, int has_audio);
 
@@ -390,7 +390,7 @@ ngx_http_rtmp_live_handler(ngx_http_request_t *r)
     }
 
     if (!(*stream)->played) {
-        if (ngx_rtmp_http_live_play_local((*stream)->session) != NGX_OK) {
+        if (ngx_rtmp_http_live_play_local((*stream)->session, (*stream)->name) != NGX_OK) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
 
@@ -1213,12 +1213,15 @@ next:
 }
 
 static ngx_int_t
-ngx_rtmp_http_live_play_local(ngx_rtmp_session_t *s)
+ngx_rtmp_http_live_play_local(ngx_rtmp_session_t *s, u_char *name)
 {
-    ngx_rtmp_play_t v;
+    ngx_rtmp_play_t     v;
+
+    ngx_memzero(&v, sizeof(v));
 
     /* do not output anything */
     v.silent = 1;
+    ngx_memcpy(v.name, name, ngx_strlen(name));
 
     ngx_rtmp_play(s, &v);
 
