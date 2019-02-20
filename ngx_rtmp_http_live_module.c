@@ -11,6 +11,7 @@
 
 /* flv header plus previous tag size */
 #define FLV_HEADER_PLUS_PTS_SIZE 13
+#define FLV_TAG_HEADER_SIZE 11
 
 static ngx_rtmp_publish_pt              next_publish;
 static ngx_rtmp_close_stream_pt         next_close_stream;
@@ -640,13 +641,13 @@ ngx_rtmp_http_prepare_packet(ngx_rtmp_session_t *s,
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
 
     /*
-     * tag type           1 byte
-     * data size          3 bytes
-     * timestamp          3 bytes
-     * timestamp ext      1 byte
-     * stream id          3 bytes
+     * tag type                1 byte
+     * data size               3 bytes
+     * timestamp               3 bytes
+     * timestamp ext           1 byte
+     * stream id               3 bytes
      * --------------------------
-     *                 = 11 bytes
+     * FLV_TAG_HEADER_SIZE  = 11 bytes
      */
 
     ngx_chain_t      *cl, ncl;
@@ -662,7 +663,11 @@ ngx_rtmp_http_prepare_packet(ngx_rtmp_session_t *s,
 
     buf = pkt->buf;
 
-    buf->pos -= 11;
+    buf->pos -= FLV_TAG_HEADER_SIZE;
+
+    /* set to zero */
+    ngx_memzero(buf->pos, FLV_TAG_HEADER_SIZE);
+
     buf->pos[0] = tag_type & 0xFF;
     buf->pos[1] = (size >> 16) & 0xFF;
     buf->pos[2] = (size >> 8) & 0xFF;
@@ -674,7 +679,6 @@ ngx_rtmp_http_prepare_packet(ngx_rtmp_session_t *s,
 
     /*8 - 10 is zero*/
 
-
     /* append previous tag size */
     ncl.next = NULL;
     ncl.buf = &b;
@@ -685,7 +689,7 @@ ngx_rtmp_http_prepare_packet(ngx_rtmp_session_t *s,
     b.last = b.end;
 
     p = b.pos;
-    size += 11;
+    size += FLV_TAG_HEADER_SIZE;
     *p++ = (size >> 24) & 0xFF;
     *p++ = (size >> 16) & 0xFF;
     *p++ = (size >> 8) & 0xFF;
