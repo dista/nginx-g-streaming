@@ -19,20 +19,23 @@ static ngx_int_t ngx_rtmp_http_live_postconfiguration(ngx_conf_t *cf);
 static void * ngx_rtmp_http_live_create_srv_conf(ngx_conf_t *cf);
 static void * ngx_rtmp_http_live_create_app_conf(ngx_conf_t *cf);
 static char * ngx_rtmp_http_live_merge_app_conf(ngx_conf_t *cf, 
-        void *parent, void *child);
+    void *parent, void *child);
 static ngx_int_t ngx_http_rtmp_live_postconfiguration(ngx_conf_t *cf);
 static void * ngx_http_rtmp_live_create_loc_conf(ngx_conf_t *cf);
 static char * ngx_http_rtmp_live_merge_loc_conf(ngx_conf_t *cf,
-        void *parent, void *child);
+    void *parent, void *child);
 static ngx_int_t ngx_http_rtmp_live_handler(ngx_http_request_t *r);
-static ngx_http_rtmp_live_play_req_t * ngx_http_rtmp_live_parse_url(ngx_http_request_t *r);
-static ngx_http_rtmp_live_stream_t **ngx_rtmp_http_live_join_stream_play(ngx_rtmp_http_live_app_conf_t *lacf,
-        ngx_str_t *name, ngx_rtmp_conf_ctx_t *cctx);
-static ngx_http_rtmp_live_stream_t **ngx_rtmp_http_live_get_stream(ngx_rtmp_http_live_app_conf_t *lacf,
-        ngx_str_t *name, ngx_int_t create);
+static ngx_http_rtmp_live_play_req_t * ngx_http_rtmp_live_parse_url(
+    ngx_http_request_t *r);
+static ngx_http_rtmp_live_stream_t **ngx_rtmp_http_live_join_stream_play(
+    ngx_rtmp_http_live_app_conf_t *lacf, ngx_str_t *name, ngx_rtmp_conf_ctx_t *cctx);
+static ngx_http_rtmp_live_stream_t **ngx_rtmp_http_live_get_stream(
+    ngx_rtmp_http_live_app_conf_t *lacf, ngx_str_t *name, ngx_int_t create);
 static ngx_int_t ngx_rtmp_http_live_play_local(ngx_rtmp_session_t *s, u_char *name);
-static ngx_int_t ngx_rtmp_http_live_send(ngx_http_rtmp_live_play_ctx_t *play, ngx_chain_t *in, ngx_uint_t priority);
-static void ngx_rtmp_http_live_build_header(u_char *header, size_t header_size, int has_video, int has_audio);
+static ngx_int_t ngx_rtmp_http_live_send(ngx_http_rtmp_live_play_ctx_t *play,
+    ngx_chain_t *in, ngx_uint_t priority);
+static void ngx_rtmp_http_live_build_header(u_char *header, size_t header_size,
+    int has_video, int has_audio);
 
 static ngx_command_t ngx_rtmp_http_live_commands[] = {
     { ngx_string("http_live_src"),
@@ -613,7 +616,8 @@ ngx_rtmp_http_live_send(ngx_http_rtmp_live_play_ctx_t *play, ngx_chain_t *in,
 }
 
 static void
-ngx_rtmp_http_live_build_header(u_char *header, size_t header_size, int has_video, int has_audio)
+ngx_rtmp_http_live_build_header(u_char *header, size_t header_size, 
+    int has_video, int has_audio)
 {
     ngx_memzero(header, header_size);
 
@@ -810,7 +814,8 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     if (stream->flv_header == NULL) {
         stream->has_audio = 1;
         stream->has_video = 1;
-        ngx_rtmp_http_live_build_header(tmp_header, sizeof(tmp_header), stream->has_video, stream->has_audio);
+        ngx_rtmp_http_live_build_header(tmp_header, sizeof(tmp_header), 
+            stream->has_video, stream->has_audio);
 
         buf.start = tmp_header;
         buf.pos = buf.start;
@@ -980,8 +985,8 @@ ngx_rtmp_http_live_get_stream(ngx_rtmp_http_live_app_conf_t *lacf,
 }
 
 static ngx_http_rtmp_live_stream_t ** 
-ngx_rtmp_http_live_join_stream_play(ngx_rtmp_http_live_app_conf_t *lacf, ngx_str_t *name,
-        ngx_rtmp_conf_ctx_t *cctx)
+ngx_rtmp_http_live_join_stream_play(ngx_rtmp_http_live_app_conf_t *lacf,
+    ngx_str_t *name, ngx_rtmp_conf_ctx_t *cctx)
 {
     ngx_http_rtmp_live_stream_t      **stream;
     ngx_pool_t                        *pool;
@@ -1089,7 +1094,8 @@ error:
 }
 
 static void
-ngx_rtmp_http_live_free_stream(ngx_rtmp_session_t *s, ngx_http_rtmp_live_stream_t *stream)
+ngx_rtmp_http_live_free_stream(ngx_rtmp_session_t *s,
+    ngx_http_rtmp_live_stream_t *stream)
 {
     ngx_rtmp_http_live_app_conf_t     *lacf;
     ngx_str_t                          name;
