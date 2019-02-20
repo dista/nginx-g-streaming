@@ -4,7 +4,7 @@ Tested nginx version: 1.15.8
 
 ## Added features
 
-* Http/flv output support
+* Http/flv live streaming output support
 
 ## Build
 
