@@ -6,6 +6,10 @@ Tested nginx version: 1.15.8
 
 * Http/flv output support
 
+## Build
+
+go (https://github.com/arut/nginx-rtmp-module) to find how to build.
+
 ## Config
 
 ### http/flv output
