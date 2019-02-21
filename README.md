@@ -5,6 +5,9 @@ Tested nginx version: 1.15.8
 ## Added features
 
 * Http/flv live streaming output support
+  * standard http output, any http function that nginx already has can be used(such as http2)
+  * same ref-count shared memory management, low memory usage
+  * http/flv play will trigger other rtmp module(such as relay), except live module
 
 ## Build
 
