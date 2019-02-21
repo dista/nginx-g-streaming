@@ -1002,6 +1002,7 @@ ngx_rtmp_http_live_join_stream_play(ngx_rtmp_http_live_app_conf_t *lacf,
     ngx_rtmp_http_live_ctx_t          *ctx;
     ngx_rtmp_live_app_conf_t          *pcf;
     ngx_rtmp_core_srv_conf_t          *cscf;
+    ngx_log_t                         *log;
 
     pool = NULL;
     s = NULL;
@@ -1031,6 +1032,16 @@ ngx_rtmp_http_live_join_stream_play(ngx_rtmp_http_live_app_conf_t *lacf,
     c->shared = 1;
     c->pool = pool;
     pool = NULL;
+
+    log = ngx_palloc(c->pool, sizeof(ngx_log_t));
+    if (log == NULL) {
+        goto error;
+    }
+
+    *log = *lacf->log;
+
+    c->log = log;
+    c->pool->log = log;
 
     addr_conf = ngx_pcalloc(c->pool, sizeof(ngx_rtmp_addr_conf_t));
     if (addr_conf == NULL) {
