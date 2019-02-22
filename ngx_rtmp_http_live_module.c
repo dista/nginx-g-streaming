@@ -404,20 +404,17 @@ ngx_http_rtmp_live_handler(ngx_http_request_t *r)
 
     ctx = ngx_pcalloc(r->pool, sizeof(ngx_http_rtmp_live_play_ctx_t));
     if (ctx == NULL) {
-        // TODO: free stream, ... resource
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     chain_ctx = ngx_pcalloc(r->pool, sizeof(ngx_rtmp_shared_send_chain_ctx_t));
     if (chain_ctx == NULL) {
-        // TODO: free stream, ... resource
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     chain_ctx->out_queue = 1024;
     chain_ctx->out = ngx_pcalloc(r->pool, chain_ctx->out_queue * sizeof(ngx_chain_t *));
     if (chain_ctx->out == NULL) {
-        // TODO: free stream, ... resource
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -596,7 +593,6 @@ ngx_rtmp_http_live_send(ngx_http_rtmp_live_play_ctx_t *play, ngx_chain_t *in,
     rc = ngx_http_output_filter(r, out);
 
     if (rc == NGX_ERROR) {
-        /* TODO: handle error */
         ngx_http_finalize_request(r, rc);
         return NGX_ERROR;
     }
@@ -976,7 +972,7 @@ ngx_rtmp_http_live_get_stream(ngx_rtmp_http_live_app_conf_t *lacf,
         *stream = lacf->free_streams;
         lacf->free_streams = lacf->free_streams->next;
     } else {
-        *stream = ngx_pcalloc(lacf->pool, sizeof(ngx_http_rtmp_live_stream_t));
+        *stream = ngx_palloc(lacf->pool, sizeof(ngx_http_rtmp_live_stream_t));
 
         if (*stream == NULL) {
             return NULL;
@@ -1006,6 +1002,7 @@ ngx_rtmp_http_live_join_stream_play(ngx_rtmp_http_live_app_conf_t *lacf,
 
     pool = NULL;
     s = NULL;
+    c = NULL;
 
     stream = ngx_rtmp_http_live_get_stream(lacf, name, 1);
 
@@ -1104,6 +1101,10 @@ error:
 
     if (s != NULL) {
         ngx_rtmp_finalize_session(s);
+    } else if (c != NULL) {
+        pool = c->pool;
+        ngx_close_connection(c);
+        ngx_destroy_pool(pool);
     }
 
     (*stream)->next = lacf->free_streams;
@@ -1145,6 +1146,16 @@ ngx_rtmp_http_live_free_stream(ngx_rtmp_session_t *s,
     lacf->free_streams = stream;
 }
 
+static void
+ngx_rtmp_http_live_flush(ngx_http_rtmp_live_stream_t *stream)
+{
+    ngx_http_rtmp_live_play_ctx_t     *pctx;
+
+    for (pctx = stream->http_players; pctx; pctx = pctx->next) {
+        ngx_rtmp_http_live_send(pctx, NULL, 0);
+    }
+}
+
 static ngx_int_t
 ngx_rtmp_http_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 {
@@ -1174,6 +1185,8 @@ ngx_rtmp_http_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *
     } else {
         /* remove publish */
         if (ctx->stream) {
+            ngx_rtmp_http_live_flush(ctx->stream);
+
             stream = ctx->stream;
             stream->publisher = NULL;
             ctx->stream = NULL;
@@ -1206,6 +1219,18 @@ ngx_rtmp_http_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
     name.data = v->name;
     name.len = ngx_strlen(v->name);
 
+    ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_http_live_module);
+
+    if (ctx == NULL) {
+        ctx = ngx_pcalloc(s->connection->pool, sizeof(ngx_rtmp_http_live_ctx_t));
+        if (ctx == NULL) {
+            return NGX_ERROR;
+        }
+
+        ctx->publishing = 1;
+        ngx_rtmp_set_ctx(s, ctx, ngx_rtmp_http_live_module);
+    }
+
     stream = ngx_rtmp_http_live_get_stream(lacf, &name, 1);
 
     if (stream == NULL) {
@@ -1214,25 +1239,13 @@ ngx_rtmp_http_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
     }
 
     if ((*stream)->publisher != NULL) {
-        /* TODO: already published */
+        ngx_log_debug0(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+                       "stream already has publisher");
         return NGX_ERROR;
     }
 
     (*stream)->publisher = s;
-
-    ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_http_live_module);
-
-    if (ctx == NULL) {
-        ctx = ngx_palloc(s->connection->pool, sizeof(ngx_rtmp_http_live_ctx_t));
-        if (ctx == NULL) {
-            /* TODO: should free stream is no player and publish */
-            return NGX_ERROR;
-        }
-
-        ctx->publishing = 1;
-        ctx->stream = *stream;
-        ngx_rtmp_set_ctx(s, ctx, ngx_rtmp_http_live_module);
-    }
+    ctx->stream = *stream;
 
 next:
     return next_publish(s, v);
