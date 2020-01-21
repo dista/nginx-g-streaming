@@ -71,4 +71,4 @@ download(or play by any player, such as vlc)
 
 ### DEV Notes
 
-http-live-flv notes(https://dista.work/dev/2019/02/17/ngx-rtmp-http-live.html)
+http-live-flv notes(https://dista.one/dev/2019/02/17/ngx-rtmp-http-live.html)
