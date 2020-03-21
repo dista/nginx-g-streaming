@@ -20,6 +20,20 @@ typedef struct {
     unsigned                   sqh_sent:1;
 } ngx_http_rtmp_live_tag_stream_t;
 
+typedef struct ngx_http_rtmp_live_packet_s {
+    ngx_rtmp_header_t header;
+    ngx_chain_t      *body;
+} ngx_http_rtmp_live_packet_t;
+
+#define NGX_HTTP_RTMP_LIVE_CACHE_SIZE 1024
+
+typedef struct ngx_http_rtmp_live_cache_s {
+    ngx_http_rtmp_live_packet_t   pkts[NGX_HTTP_RTMP_LIVE_CACHE_SIZE];
+    int                           pos;
+    int                           last;
+    int                           play_pos;
+} ngx_http_rtmp_live_cache_t;
+
 struct ngx_http_rtmp_live_stream_s {
     u_char                            app[NGX_RTMP_MAX_NAME];
                                       /* stream name */
@@ -40,11 +54,12 @@ struct ngx_http_rtmp_live_stream_s {
 
     ngx_uint_t                        meta_version;
 
+    ngx_http_rtmp_live_cache_t        cache;
+
     unsigned                          played:1;
     unsigned                          has_video:1;
     unsigned                          has_audio:1;
 };
-
 
 typedef struct {
     size_t                         out_count;
@@ -72,6 +87,7 @@ struct ngx_http_rtmp_live_play_ctx_s {
     ngx_http_rtmp_live_tag_stream_t   ts[2];
 
     unsigned                          flv_header_sent:1;
+    unsigned                          cache_sent:1;
 };
 
 struct ngx_rtmp_http_live_ctx_s {
@@ -94,6 +110,7 @@ typedef struct {
     ngx_flag_t   interleave;
     ngx_flag_t   wait_key;
     ngx_flag_t   wait_video;
+    ngx_flag_t   cache;
     ngx_int_t    nbuckets;
     ngx_log_t   *log;
     ngx_pool_t  *pool;

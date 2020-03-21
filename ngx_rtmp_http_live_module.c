@@ -74,6 +74,13 @@ static ngx_command_t ngx_rtmp_http_live_commands[] = {
       offsetof(ngx_rtmp_http_live_app_conf_t, nbuckets),
       NULL },
 
+    { ngx_string("http_live_cache"),
+      NGX_RTMP_MAIN_CONF | NGX_RTMP_SRV_CONF | NGX_RTMP_APP_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_flag_slot,
+      NGX_RTMP_APP_CONF_OFFSET,
+      offsetof(ngx_rtmp_http_live_app_conf_t, cache),
+      NULL },
+
     ngx_null_command
 };
 
@@ -174,6 +181,7 @@ ngx_rtmp_http_live_create_app_conf(ngx_conf_t *cf)
     lacf->nbuckets = NGX_CONF_UNSET;
     lacf->wait_key = NGX_CONF_UNSET;
     lacf->wait_video = NGX_CONF_UNSET;
+    lacf->cache = NGX_CONF_UNSET;
 
     lacf->log = &cf->cycle->new_log;
 
@@ -191,6 +199,7 @@ ngx_rtmp_http_live_merge_app_conf(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->nbuckets, prev->nbuckets, 1024);
     ngx_conf_merge_value(conf->wait_key, prev->wait_key, 1);
     ngx_conf_merge_value(conf->wait_video, prev->wait_video, 0);
+    ngx_conf_merge_value(conf->cache, prev->cache, 0);
 
     conf->pool = ngx_create_pool(4096, &cf->cycle->new_log);
     if (conf->pool == NULL) {
@@ -711,6 +720,89 @@ ngx_rtmp_http_live_from_raw_meta(ngx_rtmp_session_t *s,
 }
 
 static ngx_int_t
+ngx_rtmp_http_live_cache_send(ngx_http_rtmp_live_stream_t *stream,
+        ngx_http_rtmp_live_play_ctx_t *pctx)
+{
+    ngx_http_rtmp_live_cache_t        *cache;
+    ngx_uint_t                         prio;
+    int                                i, len, pos;
+    ngx_http_rtmp_live_packet_t       *pkt;
+    int                                ret;
+
+    cache = &stream->cache;
+
+    prio = 0;
+
+    len = (cache->last + NGX_HTTP_RTMP_LIVE_CACHE_SIZE
+            - cache->play_pos) % NGX_HTTP_RTMP_LIVE_CACHE_SIZE;
+
+    for (i = 0; i < len; i++) {
+        pos = (cache->play_pos + i) % NGX_HTTP_RTMP_LIVE_CACHE_SIZE;
+
+        pkt = cache->pkts + pos;
+
+        if ((ret = ngx_rtmp_http_live_send(pctx, pkt->body, prio)) != NGX_OK) {
+            return ret;
+        }
+    }
+
+    return NGX_OK;
+}
+
+static ngx_int_t
+ngx_rtmp_http_live_cache_append_packet(ngx_rtmp_session_t *s,
+        ngx_rtmp_header_t *h, ngx_chain_t *body, ngx_chain_t *in)
+{
+    int                                len;
+    ngx_http_rtmp_live_packet_t       *pkt;
+    ngx_rtmp_http_live_ctx_t          *ctx;
+    ngx_rtmp_core_srv_conf_t          *cscf;
+    ngx_http_rtmp_live_stream_t       *stream;
+    ngx_http_rtmp_live_cache_t        *cache;
+    int                                i;
+
+    ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_http_live_module);
+    cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
+
+    stream = ctx->stream;
+    cache = &stream->cache;
+
+    len = (cache->last + NGX_HTTP_RTMP_LIVE_CACHE_SIZE
+            - cache->pos) % NGX_HTTP_RTMP_LIVE_CACHE_SIZE;
+
+    // 10 for safety
+    if (len == NGX_HTTP_RTMP_LIVE_CACHE_SIZE - 10) {
+        pkt = &cache->pkts[cache->pos];
+
+        ngx_rtmp_free_shared_chain(cscf, pkt->body);
+        pkt->body = NULL;
+
+        // the last playable position is removed
+        // so reset play_pos
+        if (cache->pos == cache->play_pos) {
+            cache->play_pos = -1;
+        }
+
+        cache->pos = (cache->pos + 1) % NGX_HTTP_RTMP_LIVE_CACHE_SIZE;
+    }
+
+    i = stream->cache.last;
+
+    cache->pkts[i].header = *h;
+    ngx_rtmp_acquire_shared_chain(body);
+    cache->pkts[i].body = body;
+
+    if (h->type == NGX_RTMP_MSG_VIDEO
+        && ngx_rtmp_get_video_frame_type(in) == NGX_RTMP_VIDEO_KEY_FRAME) {
+        cache->play_pos = i;
+    }
+
+    cache->last = (cache->last + 1) % NGX_HTTP_RTMP_LIVE_CACHE_SIZE;
+
+    return NGX_OK;
+}
+
+static ngx_int_t
 ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                  ngx_chain_t *in)
 {
@@ -719,7 +811,7 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_rtmp_core_srv_conf_t          *cscf;
     ngx_rtmp_codec_ctx_t              *codec_ctx;
     ngx_chain_t                        tmp, *pkt, *hpkt, *flv_header, *meta,
-                                      *header;
+                                      *header, *cache_aac_h, *cache_avc_h;
     ngx_buf_t                          buf;
     ngx_http_rtmp_live_stream_t       *stream;
     ngx_http_rtmp_live_play_ctx_t     *pctx;
@@ -750,6 +842,8 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     pkt = NULL;
     hpkt = NULL;
+    cache_avc_h = NULL;
+    cache_aac_h = NULL;
     flv_header = NULL;
     header = NULL;
     meta = NULL;
@@ -850,6 +944,43 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             }
         }
 
+        // handle cache
+        if (lacf->cache && !pctx->cache_sent) {
+            if (stream->cache.play_pos != -1) {
+                if (codec_ctx->avc_header != NULL) {
+                    if (cache_avc_h == NULL) {
+                        cache_avc_h = ngx_rtmp_append_shared_bufs(cscf, NULL, codec_ctx->avc_header);
+                        ngx_rtmp_http_prepare_packet(s, NGX_RTMP_MSG_VIDEO, 0, cache_avc_h);
+                    }
+
+                    if (ngx_rtmp_http_live_send(pctx, cache_avc_h, 0) != NGX_OK) {
+                        continue;
+                    }
+                }
+
+                if (codec_ctx->aac_header != NULL) {
+                    if (cache_aac_h == NULL) {
+                        cache_aac_h = ngx_rtmp_append_shared_bufs(cscf, NULL, codec_ctx->aac_header);
+                        ngx_rtmp_http_prepare_packet(s, NGX_RTMP_MSG_AUDIO, 0, cache_aac_h);
+                    }
+
+                    if (ngx_rtmp_http_live_send(pctx, cache_aac_h, 0) != NGX_OK) {
+                        continue;
+                    }
+                }
+
+                if (ngx_rtmp_http_live_cache_send(stream, pctx) != NGX_OK) {
+                    continue;
+                }
+
+                // after write cache, it's active now
+                pctx->ts[0].active = 1;
+                pctx->ts[1].active = 1;
+            }
+
+            pctx->cache_sent = 1;
+        }
+
         if (!ts->active) {
             if (mandatory) {
                 continue;
@@ -889,12 +1020,25 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ts->timestamp = h->timestamp;
     }
 
+    // cache it for low time for play start
+    if (lacf->cache) {
+        ngx_rtmp_http_live_cache_append_packet(s, h, pkt, in);
+    }
+
     if (pkt) {
         ngx_rtmp_free_shared_chain(cscf, pkt);
     }
 
     if (hpkt) {
         ngx_rtmp_free_shared_chain(cscf, hpkt);
+    }
+
+    if (cache_avc_h) {
+        ngx_rtmp_free_shared_chain(cscf, cache_avc_h);
+    }
+
+    if (cache_aac_h) {
+        ngx_rtmp_free_shared_chain(cscf, cache_aac_h);
     }
 
     return NGX_OK;
@@ -953,6 +1097,7 @@ ngx_rtmp_http_live_get_stream(ngx_rtmp_http_live_app_conf_t *lacf,
 {
     ngx_http_rtmp_live_stream_t      **stream;
     u_char                            *n;
+    int                                i;
 
     stream = &lacf->streams[ngx_hash_key(name->data, name->len) % lacf->nbuckets];
 
@@ -981,6 +1126,14 @@ ngx_rtmp_http_live_get_stream(ngx_rtmp_http_live_app_conf_t *lacf,
 
     ngx_memzero(*stream, sizeof(ngx_http_rtmp_live_stream_t));
     ngx_memcpy((*stream)->name, name->data, name->len);
+
+    (*stream)->cache.pos = 0;
+    (*stream)->cache.last = 0;
+    (*stream)->cache.play_pos = -1;
+
+    for (i = 0; i < NGX_HTTP_RTMP_LIVE_CACHE_SIZE; i++) {
+        (*stream)->cache.pkts[i].body = NULL;
+    }
 
     return stream;
 }
@@ -1122,6 +1275,7 @@ ngx_rtmp_http_live_free_stream(ngx_rtmp_session_t *s,
     ngx_str_t                          name;
     ngx_http_rtmp_live_stream_t      **ps;
     ngx_rtmp_core_srv_conf_t          *cscf;
+    int                                i;
 
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_http_live_module);
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
@@ -1140,6 +1294,13 @@ ngx_rtmp_http_live_free_stream(ngx_rtmp_session_t *s,
         ngx_rtmp_free_shared_chain(cscf, stream->meta);
         stream->meta = NULL;
         stream->meta_version = 0;
+    }
+
+    for (i = 0; i < NGX_HTTP_RTMP_LIVE_CACHE_SIZE; i++) {
+        if (stream->cache.pkts[i].body != NULL) {
+            ngx_rtmp_free_shared_chain(cscf, stream->cache.pkts[i].body);
+            stream->cache.pkts[i].body = NULL;
+        }
     }
 
     stream->next = lacf->free_streams;
