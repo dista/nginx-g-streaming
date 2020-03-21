@@ -1,9 +1,11 @@
-# Nginx rtmp with more features
+# Nginx G Streaming
 
-Tested nginx version: 1.15.8    
+It's a streaming server fork from ngx-rtmp-module.
 
-## Added features
+Tested nginx version: `1.15.8`   
 
+## features
+* Orignal ngx-rtmp-module features
 * Http/flv live streaming output support
   * standard http output, any http function that nginx already has can be used(such as http2)
   * same ref-count shared memory management, low memory usage
