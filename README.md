@@ -12,7 +12,14 @@ Tested nginx version: 1.15.8
 
 ## Build
 
-go (https://github.com/arut/nginx-rtmp-module) to find how to build.
+go (https://github.com/arut/nginx-rtmp-module) to find how to build.    
+    
+cd to NGINX source directory & run this:    
+```
+./configure --add-module=/path/to/nginx-rtmp-module
+make
+make install
+```
 
 ## Config
 
@@ -67,6 +74,37 @@ Syntax: `http_live on|off`
 Context: rtmp, server, app    
     
 Whether enable http/flv live function
+
+#### http_wait_key
+Syntax: `http_wait_key on|off`    
+Context: rtmp, server, app    
+    
+Wait for key-frame when output    
+
+#### http_wait_video
+Syntax: `http_wait_video on|off`    
+Context: rtmp, server, app    
+    
+When audio packet arrive first, drop it and wait for video    
+
+#### http_live_cache
+Syntax: `http_live_cache on|off`    
+Context: rtmp, server, app    
+    
+Cache frame, so when a new player start to play, the cached frame will be sent first.    
+This will make player start to play quickly.    
+
+#### http_rtmp_live_dst
+Syntax: `http_rtmp_live_dst name`    
+Context: http, server, location    
+        
+Find `http_live_src` server of the 'name', so we will get rtmp packet from that server block
+
+#### http_rtmp_live
+Syntax: `http_rtmp_live on|off`    
+Context: http, server, location    
+    
+Enable http/flv by convert from live rtmp stream publish.    
 
 ### Try
 
