@@ -53,6 +53,21 @@ http {
 When we visit a http/flv stream `http://127.0.0.1:8080/myapp/test.flv`, it will find rtmp server block contains the `http_live_src` as `mylive`, and find app `myapp` and stream name `test`.
 So if we using ffmpeg to push rtmp stream to `rtmp://127.0.0.1:19350/myapp/test`,  the stream data will send to the http/flv client.
 
+## Directive
+
+#### http_live_src
+Syntax: `http_live_src name`    
+Context: server    
+    
+Name a rtmp server block, when play using http/flv, `http_rtmp_live_dst` will try    
+to find this server block
+
+#### http_live
+Syntax: `http_live on|off`    
+Context: rtmp, server, app    
+    
+Whether enable http/flv live function
+
 ### Try
 
 pushing using ffmpeg
