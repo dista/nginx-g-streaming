@@ -821,6 +821,7 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_uint_t                         tsid;
     ngx_uint_t                         meta_version;
     ngx_http_rtmp_live_tag_stream_t   *ts;
+    ngx_int_t                          need_header;
 
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_http_live_module);
     if (lacf == NULL) {
@@ -849,6 +850,7 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     meta = NULL;
     meta_version = 0;
     mandatory = 0;
+    need_header = 1;
 
     prio = (h->type == NGX_RTMP_MSG_VIDEO ?
             ngx_rtmp_get_video_frame_type(in) : 0);
@@ -869,7 +871,11 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     if (codec_ctx) {
         if (h->type == NGX_RTMP_MSG_AUDIO) {
-            header = codec_ctx->aac_header;
+            if (codec_ctx->audio_codec_id == NGX_RTMP_AUDIO_AAC) {
+                header = codec_ctx->aac_header;
+            } else {
+                need_header = 0;
+            }
 
             if (codec_ctx->audio_codec_id == NGX_RTMP_AUDIO_AAC &&
                 ngx_rtmp_is_codec_header(in))
@@ -881,7 +887,8 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         } else {
             header = codec_ctx->avc_header;
 
-            if (codec_ctx->video_codec_id == NGX_RTMP_VIDEO_H264 &&
+            if ((codec_ctx->video_codec_id == NGX_RTMP_VIDEO_H264 ||
+                 codec_ctx->video_codec_id == NGX_RTMP_VIDEO_HEVC) &&
                 ngx_rtmp_is_codec_header(in))
             {
                 prio = 0;
@@ -997,17 +1004,19 @@ ngx_rtmp_http_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 continue;
             }
 
-            if (!header) {
-                continue;
-            }
+            if (need_header) {
+                if (!header) {
+                    continue;
+                }
 
-            if (hpkt == NULL) {
-                hpkt = ngx_rtmp_append_shared_bufs(cscf, NULL, header);
-                ngx_rtmp_http_prepare_packet(s, h->type, h->timestamp, hpkt);
-            }
+                if (hpkt == NULL) {
+                    hpkt = ngx_rtmp_append_shared_bufs(cscf, NULL, header);
+                    ngx_rtmp_http_prepare_packet(s, h->type, h->timestamp, hpkt);
+                }
 
-            if (ngx_rtmp_http_live_send(pctx, hpkt, 0) != NGX_OK) {
-                continue;
+                if (ngx_rtmp_http_live_send(pctx, hpkt, 0) != NGX_OK) {
+                    continue;
+                }
             }
 
             ts->active = 1;
