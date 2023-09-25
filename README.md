@@ -124,7 +124,3 @@ download(or play by any player, such as vlc)
                                  Dload  Upload   Total   Spent    Left  Speed
 100 1594k    0 1594k    0     0   114k      0 --:--:--  0:00:13 --:--:--  117k
 ```
-
-### DEV Notes
-
-http-live-flv notes(https://dista.one/dev/2019/02/17/ngx-rtmp-http-live.html)
